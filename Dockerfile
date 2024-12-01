@@ -1,40 +1,51 @@
-# Base image
-FROM ruby:3.1.2-slim
+# Stage 1 - Builder Image
+FROM ruby:3.1.2-slim AS builder
 
-# Set environment variables
-ENV LANG=C.UTF-8 \
-    BUNDLE_PATH=/bundle \
-    GEM_HOME=/bundle \
-    PATH=/app/bin:/bundle/bin:$PATH
+# Install dependencies for Rails, Node.js, Yarn, PostgreSQL, and others
+RUN apt-get update -qq && apt-get install -y \
+  build-essential \
+  libpq-dev \
+  curl \
+  && apt-get clean
 
-# Install necessary packages
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    nodejs \
-    yarn && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Install Node.js 14.x (compatible version)
+RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - \
+  && apt-get install -y nodejs
 
-# Set the working directory
-WORKDIR /app
+# Install Yarn
+RUN npm install -g yarn
 
-# Copy Gemfile and Gemfile.lock
-COPY Gemfile Gemfile.lock ./
+# Set working directory
+WORKDIR /myapp
 
 # Install gems
-RUN bundle install
+COPY Gemfile Gemfile.lock ./
+RUN gem install bundler:2.3.25 && bundle install
 
-# Copy the application code
-COPY . ./
+# Copy the rest of the application code
+COPY . .
 
-# Precompile assets
+# Install Yarn dependencies
+RUN yarn install
+
+# Precompile assets (this will trigger jsbundling)
 RUN bundle exec rake assets:precompile
 
-# Expose the default Rails port
+# Stage 2 - Final Image
+FROM ruby:3.1.2-slim AS final
+
+# Set working directory
+WORKDIR /app
+
+# Copy gems and precompiled assets from the builder stage
+COPY --from=builder /myapp /app
+
+# Expose port for Rails server
 EXPOSE 3000
 
-# Command to start the Rails server
-CMD ["rails", "server", "-b", "0.0.0.0"]
+# Set environment variables (example for PostgreSQL and Rails secret key)
+ENV RAILS_ENV=production
+ENV RAILS_LOG_TO_STDOUT=true
 
+# Run migrations and start the server by default
+CMD ["bash", "-c", "rails db:migrate && rails s -b '0.0.0.0'"]
