@@ -18,9 +18,12 @@ RUN npm install -g yarn
 # Set working directory
 WORKDIR /myapp
 
-# Install gems
+# Copy Gemfile and Gemfile.lock and install gems
 COPY Gemfile Gemfile.lock ./
-RUN gem install bundler:2.3.25 && bundle install
+
+# Install bundler, required gems, and rails
+RUN gem install bundler:2.3.25 && \
+    bundle install --jobs 4 --retry 3
 
 # Copy the rest of the application code
 COPY . .
@@ -46,6 +49,7 @@ EXPOSE 3000
 # Set environment variables (example for PostgreSQL and Rails secret key)
 ENV RAILS_ENV=production
 ENV RAILS_LOG_TO_STDOUT=true
+ENV SECRET_KEY_BASE=${SECRET_KEY_BASE}
 
 # Run migrations and start the server by default
 CMD ["bash", "-c", "rails db:migrate && rails s -b '0.0.0.0'"]

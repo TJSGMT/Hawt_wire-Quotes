@@ -74,3 +74,6 @@ group :test do
   gem "webdrivers"
 end
 gem "simple_form", "~> 5.1.0"
+gem 'rack', '~> 2.2.8'
+gem "uglifier", ">= 1.3.0"
+
